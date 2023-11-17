@@ -20,11 +20,12 @@ until kubectl get --namespace=nexus routes.route.openshift.io nexus3 -o=jsonpath
 done
 echo ""
 
+# Default username/password from a Nexus installation that should be changed when using outside of a development/demo based scenario.
 export MAVEN_USERNAME=admin
 export MAVEN_PASSWORD=admin123
 export MAVEN_REPOSITORY="http://$(kubectl get --namespace=nexus routes.route.openshift.io nexus3 -o=json | jq -r '.spec.host')/repository/maven-releases"
 
-echo -e "\033[0;32mCompleted setup (MAVEN_REPOSITORY is \"$MAVEN_REPOSITORY\" and PWD \"$MAVEN_PASSWORD\" )\033[0m"
+echo -e "\033[0;32mCompleted setup (MAVEN_REPOSITORY is \"$MAVEN_REPOSITORY\")\033[0m"
 cd $(dirname $0)/../jbs-installer && ./deploy.sh
 
 echo -e "\033[0;32mCompleted setup\033[0m"

@@ -2,6 +2,7 @@ apiVersion: apps.m88i.io/v1alpha1
 kind: Nexus
 metadata:
   name: nexus3
+  namespace: nexus
 spec:
   # Number of Nexus pod replicas (can't be increased after creation)
   replicas: 1
