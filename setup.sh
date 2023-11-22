@@ -13,15 +13,8 @@ kubectl config set-context --current --namespace=default
 echo -e "\033[0;32mRunning JBS demo kustomize...\033[0m"
 kustomize build . | kubectl apply -f -
 
-# Loop until the route is ready. Should be far quicker than waiting for the entire nexus startup.
-timeout=300
-endTime=$(( $(date +%s) + timeout ))
-until kubectl get --namespace=nexus routes.route.openshift.io nexus3 -o=jsonpath="{.status.ingress[0].host}" ; do
-    sleep 1
-    if [ $(date +%s) -gt $endTime ]; then
-        exit 1
-    fi
-done
+# Wait until the route is ready. Should be far quicker than waiting for the entire nexus startup.
+kubectl wait --namespace=nexus --for=jsonpath='{.status.ingress[0].host}' --timeout=480s routes.route.openshift.io nexus3 || exit 1
 
 echo ""
 
@@ -46,6 +39,7 @@ export MAVEN_PASSWORD=admin123
 export MAVEN_REPOSITORY="http://$(kubectl get --namespace=nexus routes.route.openshift.io nexus3 -o=json | jq -r '.spec.host')/repository/maven-releases"
 export GIT_DEPLOY_IDENTITY=root
 export GIT_DEPLOY_URL="https://gitlab.$OPENSHIFT_CLUSTER"
+export GIT_DISABLE_SSL_VERIFICATION="true"
 
 echo -e "\033[0;32mCompleted setup (MAVEN_REPOSITORY is \"$MAVEN_REPOSITORY\")\033[0m"
 cd $(dirname $0)/../jbs-installer && ./deploy.sh
