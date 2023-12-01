@@ -3,6 +3,7 @@ kind: Kustomization
 
 resources:
   - namespace.yaml
+  - gitlab-operatorgroup.yaml
   - subscription-certmanager.yaml
   - subscription-gitlab.yaml
-  - gitlab.yaml
+#  - gitlab.yaml

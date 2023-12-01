@@ -20,14 +20,35 @@ echo ""
 
 if [ "$1" = "-g" ]; then
     echo "Installing GitLab"
-    kustomize build gitlab | envsubst '${OPENSHIFT_CLUSTER}' | kubectl apply -f -
+#    kubectl apply -f gitlab/namespace.yaml
+#    kubectl apply -f gitlab/gitlab-operatorgroup.yaml
+#    kubectl apply -f gitlab/subscription-certmanager.yaml
+#    kubectl rollout status deployment -n openshift-operators cert-manager
+#    kubectl rollout status deployment -n openshift-operators cert-manager-webhook
+#    kubectl wait --for=condition=Available --timeout=480s -n openshift-operators deployment.apps cert-manager
+#    kubectl wait --for=condition=Available --timeout=480s -n openshift-operators deployment.apps cert-manager-webhook
+#    kubectl apply -f gitlab/subscription-gitlab.yaml
+#    kubectl rollout status -n gitlab-system deployment gitlab-controller-manager
 
+    kustomize build gitlab | envsubst '${OPENSHIFT_CLUSTER}' | kubectl apply -f -
     echo -e "\033[0;32mWait for GitLab to start (note: this will take a long time)\033[0m"
     echo -e "Run the following command to extract the password:"
     echo -e "\033[0;30mkubectl -n gitlab-system get secrets gitlab-gitlab-initial-root-password -o yaml | yq e '.data.password' - | base64 -d\033[0m"
     echo -e "Finally login with username 'root' and extracted password to create a token."
     echo -e "Set 'export GIT_DEPLOY_TOKEN=<value>' and rerun this script without the -g flag"
+    echo -e ""
+    echo -e "This invocation with -g might need to be rerun if the instance rollout hasn't proceeded...sleeping for a minute ..."
+
+    sleep 60
+    kubectl rollout status deployment -n openshift-operators cert-manager
+    kubectl rollout status deployment -n openshift-operators cert-manager-webhook
+    kubectl rollout status -n gitlab-system deployment gitlab-controller-manager
+    kubectl wait --for=condition=Available --timeout=480s -n openshift-operators deployment.apps cert-manager
+    kubectl wait --for=condition=Available --timeout=480s -n openshift-operators deployment.apps cert-manager-webhook
+
+    kubectl apply --dry-run=client -o yaml -f gitlab/gitlab.yaml | envsubst '${OPENSHIFT_CLUSTER}' | kubectl apply -f -
     kubectl wait --namespace=gitlab-system --for=condition=Available --timeout=480s gitlab gitlab
+
     exit 0
 fi
 
