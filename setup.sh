@@ -36,6 +36,9 @@ if [ "$1" = "-g" ]; then
     echo -e "\033[0;30mkubectl -n gitlab-system get secrets gitlab-gitlab-initial-root-password -o yaml | yq e '.data.password' - | base64 -d\033[0m"
     echo -e "Finally login with username 'root' and extracted password to create a token."
     echo -e "Set 'export GIT_DEPLOY_TOKEN=<value>' and rerun this script without the -g flag"
+    echo -e "Run the following command to extract the domain:"
+    echo -e "\033[0;30mecho \"https://gitlab.\`kubectl get gitlabs.apps.gitlab.com -n gitlab-system -o yaml | yq e '.items[].spec.chart.values.global.hosts.domain'\`\"\033[0m"
+    echo -e "Set 'export GIT_DEPLOY_URL=<value>' and rerun this script without the -g flag"
     echo -e ""
     echo -e "This invocation with -g might need to be rerun if the instance rollout hasn't proceeded...sleeping for a minute ..."
 
@@ -52,7 +55,7 @@ if [ "$1" = "-g" ]; then
     exit 0
 fi
 
-echo -e "\033[0;32mRunning JBS demo kustomize...\033[0m"
+echo -e "\033[0;32mCompleted JBS demo kustomize...\033[0m"
 
 # Default username/password from a Nexus installation that should be changed when using outside of a development/demo based scenario.
 export MAVEN_USERNAME=admin

@@ -15,7 +15,8 @@ The two sample repositories that we used for this demo are:
 ## Install/Configure Jenkins
 
 Assuming as per other demo installations this will be installed upon OpenShift, it is possible to switch to the 
-'Developer' mode, click Add, browse and locate Jenkins with persistent storage. It is recommended change the PVC to have 2.5GB and the Jenkins memory limit to 2GB.
+'Developer' mode, click Add, browse and locate Jenkins with persistent storage. It is recommended to change the PVC to
+have 2.5GB and the Jenkins memory limit to 2GB.
 
 ### Jenkins Tools/Plugins
 
