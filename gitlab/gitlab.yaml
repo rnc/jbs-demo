@@ -5,7 +5,7 @@ metadata:
   namespace: gitlab-system
 spec:
   chart:
-    version: "7.6.0"
+    version: "7.6.6"
     values:
       # Configuration to use OpenShift Routes
       #

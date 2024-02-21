@@ -1,0 +1,127 @@
+pipeline {
+    agent any
+
+    parameters {
+        persistentString(name: "SCM_REPO",
+            defaultValue: "https://github.com/rnc/Nasa-Picture.git",
+            description: "Pick an SCM repository to use",
+            successfulOnly: false)
+        persistentString(name: "QUAY",
+            defaultValue: params.QUAY ? params.QUAY : "quay.io/ncross/nasapicture:latest",
+            description: "Specify Quay.io repository and tag",
+            successfulOnly: false)
+    }
+    options {
+        disableResume()
+        skipDefaultCheckout()
+    }
+    stages {
+        stage("Version") {
+            steps {
+                sh "java -version"
+                echo "Using ${params.SCM_REPO} and ${params.QUAY}"
+                cleanWs()
+            }
+        }
+        stage("Clone sources") {
+            steps {
+                checkout changelog: false, poll: false, scm: scmGit(branches: [[name: '**']], extensions: [], userRemoteConfigs: [[url: "${params.SCM_REPO}"]])
+            }
+        }
+        stage("Build") {
+            environment {
+                QUAY_JBS = credentials("quay-jbs")
+            }
+            steps {
+                echo("Quay Username is $QUAY_JBS_USR")
+                sh "ls -l"
+                script {
+                    if (fileExists("${env.WORKSPACE}/pom.xml")) {
+                        withMaven (maven: 'Maven396') {
+                            sh "mvn -B -V package com.google.cloud.tools:jib-maven-plugin:3.4.0:build -Dimage=${params
+                            .QUAY} -Djib.username=$QUAY_JBS_USR -Djib.password=$QUAY_JBS_PSW -Djib.outputPaths.digest=${env.WORKSPACE}/jib-image.digest"
+                        }
+                    } else {
+                        gradlew("--no-daemon", "--console", "plain", "build", "-x" ,"test", "jib",
+                            "--image=${params.QUAY}", "-Pjib.username=$QUAY_JBS_USR", "-Pjib.password=$QUAY_JBS_PSW",
+                            "-Djib.outputPaths.digest=${env.WORKSPACE}/jib-image.digest")
+                    }
+                }
+            }
+        }
+
+        stage("Verify") {
+            environment {
+                QUAY_JBS = credentials("quay-jbs")
+                CONSOLE_JBS = credentials("console-jbs-url")
+            }
+            steps {
+                script {
+                    def digest = readFile(file: "${env.WORKSPACE}/jib-image.digest")
+                    // Scan image takes with tag format (quay.io/ncross/nasapicture:latest or digest
+                    // quay.io/ncross/nasapicture@sha256:3209444dbc868447bfd10b7761de67ee5bc23c09fc0cca6629f72e84d92014a9 )
+                    // As we have the digest its more accurate to use that.
+                    def imageScanTarget = "${params.QUAY}".split(":")[0] + "@" + "${digest}"
+                    echo("Verify Step Quay Username is ${QUAY_JBS_USR} and ${params.QUAY} and digest ${digest} and imageScanTarget ${imageScanTarget}")
+                    def jsonResult = scanImage("${imageScanTarget}")
+                    if (jsonResult == null) {
+                        error ("Unable to retrieve image scan")
+                    }
+                    if (jsonResult["analysisFailed"] == true) {
+                        error("Failing build as image analysis failed")
+                    }
+                    def dependencies = getImageDependencies(jsonResult["dependencySet"])["dependencies"]
+                    int untrusted = 0
+                    String allUntrusted = ""
+
+                    println ("### Got dependency count " + dependencies.size())
+
+                    dependencies.each { dep ->
+                        if (dep.source != "rebuilt" && dep.source != "redhat") {
+                            allUntrusted += dep.gav + " is not trusted\n"
+                            untrusted++
+                        }
+                    }
+                    if (untrusted > 0) {
+                        println allUntrusted
+                        error("Failing build as found " + untrusted + " untrusted depencencies")
+                    }
+                }
+            }
+        }
+    }
+}
+
+def gradlew(String... args) {
+    sh "./gradlew ${args.join(" ")} -s"
+}
+
+def scanImage(String target) {
+    def encodedURL = java.net.URLEncoder.encode(target, "UTF-8")
+    println("Encoded to scan is " + encodedURL)
+    int i = 0 // Max attempts to extract image result
+    def jsonResult = null
+
+    while (i < 10) {
+        def httpResponse = httpRequest authentication: "console-jbs", url: "${CONSOLE_JBS}/api/image/scan/" + encodedURL
+        if (httpResponse.status != 200) {
+            error("Invalid response ${httpResponse.status} from JBS")
+        }
+        jsonResult = readJSON text: httpResponse.content, returnPojo : true
+        if (jsonResult["analysisComplete"] != true) {
+            i++
+        } else {
+            break;
+        }
+    }
+    return jsonResult
+}
+
+def getImageDependencies(int id) {
+    def httpResponse = httpRequest authentication: "console-jbs", url: "${CONSOLE_JBS}/api/dependency-set/" + id
+    if (httpResponse.status != 200) {
+        error("Invalid response ${httpResponse.status} from JBS")
+    }
+    def jsonResult = readJSON text: httpResponse.content, returnPojo : true
+    return jsonResult
+}
